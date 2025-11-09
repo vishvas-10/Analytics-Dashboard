@@ -1,0 +1,7 @@
+# Git ignore for Analytics-Dashboard
+# Ignore Streamlit config directory which may contain secrets (secrets.toml)
+.streamlit
+
+# You can add other local files you don't want committed below, for example:
+# .env
+# venv/
