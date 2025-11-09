@@ -7,9 +7,9 @@ st.title("🎵 Spotify Insights Dashboard")
 
 # Spotify authentication
 sp = spotipy.Spotify(auth_manager=SpotifyOAuth(
-    client_id="YOUR_CLIENT_ID",
-    client_secret="YOUR_CLIENT_SECRET",
-    redirect_uri="http://localhost:8501",
+    client_id="291ad8abaaae4977a0fcab3e7d4005fe",
+    client_secret="c8797472fdd94cb8bed6d9111e49e459",
+    redirect_uri="https://analytics-dashboard-spotify.streamlit.app/",
     scope="user-top-read"
 ))
 
