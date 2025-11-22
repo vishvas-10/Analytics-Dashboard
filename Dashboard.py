@@ -1,40 +1,67 @@
 import streamlit as st
-import spotipy
-from spotipy.oauth2 import SpotifyOAuth
+import requests
 import pandas as pd
-import os
+import base64
 
+st.set_page_config(page_title="Spotify Insights", page_icon="🎧", layout="centered")
 st.title("🎵 Spotify Insights Dashboard")
 
-# Ensure cache directory exists
-os.makedirs(".cache", exist_ok=True)
+# --- Spotify credentials ---
+client_id = st.secrets["spotify"]["client_id"]
+client_secret = st.secrets["spotify"]["client_secret"]
+redirect_uri = st.secrets["spotify"]["redirect_uri"]
+scope = "user-top-read"
 
-auth_manager = SpotifyOAuth(
-    client_id=st.secrets["spotify"]["client_id"],
-    client_secret=st.secrets["spotify"]["client_secret"],
-    redirect_uri=st.secrets["spotify"]["redirect_uri"],
-    scope="user-top-read user-library-read user-read-private user-read-email",
-    cache_path=".cache/token.txt",
-    show_dialog=True
+# --- Step 1: Authorization URL ---
+auth_url = (
+    "https://accounts.spotify.com/authorize"
+    f"?client_id={client_id}"
+    "&response_type=code"
+    f"&redirect_uri={redirect_uri}"
+    f"&scope={scope}"
 )
 
-# Authenticate user
-sp = spotipy.Spotify(auth_manager=auth_manager)
+# --- Step 2: Get authorization code from redirect ---
+query_params = st.query_params
+if "code" not in query_params:
+    st.markdown(f"[🔑 Log in with Spotify]({auth_url})")
+else:
+    code = query_params["code"]
 
-st.subheader("Your Top Artists 🎤")
+    # --- Step 3: Exchange code for access token ---
+    token_url = "https://accounts.spotify.com/api/token"
+    auth_header = base64.b64encode(f"{client_id}:{client_secret}".encode()).decode()
 
-try:
-    top_artists = sp.current_user_top_artists(limit=10, time_range='medium_term')
-    st.write(top_artists)  # Debug output
+    response = requests.post(
+        token_url,
+        data={
+            "grant_type": "authorization_code",
+            "code": code,
+            "redirect_uri": redirect_uri,
+        },
+        headers={"Authorization": f"Basic {auth_header}"}
+    )
 
-    if not top_artists or not top_artists["items"]:
-        st.warning("⚠️ No top artists found. Try listening to more music or adjusting your scope.")
+    token_info = response.json()
+    access_token = token_info.get("access_token")
+
+    if not access_token:
+        st.error("Failed to get access token 😢")
+        st.json(token_info)
     else:
-        artists = [a["name"] for a in top_artists["items"]]
-        popularity = [a["popularity"] for a in top_artists["items"]]
-        df = pd.DataFrame({"Artist": artists, "Popularity": popularity})
-        st.dataframe(df)
-        st.bar_chart(df.set_index("Artist"))
+        st.success("✅ Authenticated with Spotify!")
 
-except Exception as e:
-    st.error(f"Error: {e}")
+        # --- Step 4: Get top artists ---
+        headers = {"Authorization": f"Bearer {access_token}"}
+        res = requests.get("https://api.spotify.com/v1/me/top/artists?limit=10", headers=headers)
+        data = res.json()
+
+        if "items" not in data:
+            st.warning("No top artists found or missing scope.")
+            st.json(data)
+        else:
+            artists = [a["name"] for a in data["items"]]
+            popularity = [a["popularity"] for a in data["items"]]
+            df = pd.DataFrame({"Artist": artists, "Popularity": popularity})
+            st.dataframe(df)
+            st.bar_chart(df.set_index("Artist"))
